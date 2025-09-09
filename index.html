@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オーディオエージングツール</title>
+    
+    <meta property="og:title" content="オーディオエージングツール">
+    <meta property="og:description" content="イヤホン・ヘッドホン・スピーカーのエージング（慣らし運転）を自動で行う、ウェブツールです。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sk0528jp.github.io/aat">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* フォントの読み込み */
+        @font-face {
+            font-family: 'MiSans';
+            src: url('https://sk0528jp.github.io/font/MiSans-Normal.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root {
+            --primary-color: #61afef; /* 明るい青 */
+            --background-color: #1a1a2e; /* 深い青 */
+            --card-background: #232946; /* ダークネイビー */
+            --text-color: #e4e6eb; /* ライトグレー */
+            --button-bg-color: #42496a; /* 少し明るいネイビー */
+            --danger-color: #e74c3c; /* 赤 */
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        body {
+            font-family: 'MiSans', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-background);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px var(--shadow-color);
+            width: 90%;
+            max-width: 650px;
+            text-align: center;
+            border: 2px solid #363b5f;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 2.2em;
+            font-weight: 600;
+        }
+        
+        .tuner-display {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            margin: 0 auto 30px;
+            border-radius: 50%;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.2);
+            border: 4px solid var(--primary-color);
+            overflow: hidden;
+        }
+        
+        .tuner-display::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            height: 90%;
+            border-radius: 50%;
+            background: var(--card-background);
+            z-index: 1;
+        }
+
+        .tuner-display > * {
+            position: relative;
+            z-index: 2;
+        }
+        
+        #currentType, #timeLeft {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        #currentType {
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+        
+        #timeLeft {
+            color: var(--text-color);
+            font-size: 1.2em;
+        }
+
+        #spectrum-canvas {
+            background: transparent;
+            width: 100%;
+            height: 120px;
+            margin-bottom: 20px;
+            border: 1px solid #363b5f;
+            border-radius: 10px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .control-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #363b5f;
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+
+        .control-group label {
+            flex: 1;
+            text-align: left;
+            font-weight: 500;
+        }
+        
+        .control-group input[type="range"] {
+            flex: 3;
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: var(--button-bg-color);
+            outline: none;
+            opacity: 0.9;
+            transition: opacity .2s;
+            border-radius: 5px;
+        }
+        
+        .control-group input[type="range"]:hover {
+            opacity: 1;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid var(--card-background);
+        }
+        
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid var(--card-background);
+        }
+        
+        .control-group input[type="number"] {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #363b5f;
+            border-radius: 5px;
+            background: var(--button-bg-color);
+            color: var(--text-color);
+            text-align: center;
+            font-size: 1em;
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .button {
+            background-color: var(--button-bg-color);
+            color: var(--text-color);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            font-family: 'MiSans', sans-serif;
+            font-size: 1em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        #startButton {
+            background-color: var(--primary-color);
+            color: var(--card-background);
+        }
+        
+        #startButton:hover {
+            background-color: #4b89c7;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px var(--shadow-color);
+        }
+
+        #stopBtn {
+            background-color: var(--danger-color);
+            color: var(--card-background);
+        }
+        
+        #stopBtn:hover {
+            background-color: #c0392b;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Audio Aging Tool</h1>
+    <div class="tuner-display">
+        <span id="currentType">停止中</span>
+        <span id="timeLeft">00:00:00</span>
+    </div>
+    <canvas id="spectrum-canvas"></canvas>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="volume">音量:</label>
+            <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div class="control-group">
+            <label for="totalDuration">合計時間 (分):</label>
+            <input type="number" id="totalDuration" min="1" value="60">
+        </div>
+    </div>
+
+    <div class="buttons">
+        <button id="startButton" class="button"><i class="fas fa-play"></i> チューニング開始</button>
+        <button id="stopBtn" class="button"><i class="fas fa-stop"></i> 停止</button>
+    </div>
+</div>
+
+<script>
+    const volumeControl = document.getElementById('volume');
+    const totalDurationControl = document.getElementById('totalDuration');
+    const startButton = document.getElementById('startButton');
+    const stopBtn = document.getElementById('stopBtn');
+    const currentTypeDisplay = document.getElementById('currentType');
+    const timeLeftDisplay = document.getElementById('timeLeft');
+    const canvas = document.getElementById('spectrum-canvas');
+    const canvasCtx = canvas.getContext('2d');
+
+    let audioCtx;
+    let source;
+    let gainNode;
+    let analyser;
+    let timerId;
+    let animationFrameId;
+    let startTime;
+    let sequenceIndex = 0;
+    const sequence = ['white', 'pink', 'sweep'];
+
+    // バックグラウンド再生の許可をリクエスト
+    const requestWakeLock = async () => {
+        if ('wakeLock' in navigator) {
+            try {
+                const wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Screen Wake Lock is active.');
+                return wakeLock;
+            } catch (err) {
+                console.error('Screen Wake Lock not supported:', err);
+                return null;
+            }
+        }
+        return null;
+    };
+
+    const createNoiseSource = (type) => {
+        const bufferSize = 4096;
+        const noise = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+        noise.onaudioprocess = (e) => {
+            const output = e.outputBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                if (type === 'white') {
+                    output[i] = Math.random() * 2 - 1;
+                } else if (type === 'pink') {
+                    // Pink noise algorithm (approximated)
+                    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+                    const white = Math.random() * 2 - 1;
+                    b0 = 0.99886 * b0 + white * 0.0555179;
+                    b1 = 0.99332 * b1 + white * 0.075009;
+                    b2 = 0.96900 * b2 + white * 0.153852;
+                    b3 = 0.86650 * b3 + white * 0.3104856;
+                    b4 = 0.55000 * b4 + white * 0.5329522;
+                    b5 = -0.7616 * b5 + white * 0.5235332;
+                    output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                    output[i] *= 0.11;
+                    b6 = white * 0.115926;
+                }
+            }
+        };
+        return noise;
+    };
+    
+    const createSweepSource = (startFreq, endFreq, duration) => {
+        const oscillator = audioCtx.createOscillator();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = startFreq;
+
+        const now = audioCtx.currentTime;
+        const sweepDuration = parseFloat(duration) * 60;
+
+        oscillator.frequency.exponentialRampToValueAtTime(endFreq, now + sweepDuration);
+
+        return oscillator;
+    };
+
+    const startAudio = (type, duration) => {
+        if (source) stopAudioSource();
+        
+        if (!audioCtx || audioCtx.state === 'closed') {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = volumeControl.value;
+        
+        let playbackDuration = parseFloat(duration) * 60;
+
+        if (type === 'white' || type === 'pink') {
+            source = createNoiseSource(type);
+        } else if (type === 'sweep') {
+            source = createSweepSource(20, 20000, duration);
+        }
+
+        source.connect(gainNode);
+        gainNode.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        if (source.start) {
+            source.start();
+        }
+        
+        currentTypeDisplay.textContent = type === 'white' ? 'ホワイトノイズ' : type === 'pink' ? 'ピンクノイズ' : 'スイープ';
+        startTime = Date.now();
+        updateTimeAndDraw();
+
+        if (playbackDuration > 0) {
+            timerId = setTimeout(nextInSequence, playbackDuration * 1000);
+        } else {
+            nextInSequence();
+        }
+    };
+    
+    const stopAudioSource = () => {
+        if (source) {
+            if (source.stop) {
+                source.stop();
+            } else {
+                source.disconnect();
+            }
+            source = null;
+        }
+    };
+
+    const stopAudio = () => {
+        stopAudioSource();
+        if (audioCtx && audioCtx.state !== 'closed') {
+            audioCtx.close().then(() => {
+                console.log('AudioContext closed');
+            });
+        }
+        if (timerId) {
+            clearTimeout(timerId);
+            timerId = null;
+        }
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        currentTypeDisplay.textContent = '停止中';
+        timeLeftDisplay.textContent = '00:00:00';
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        sequenceIndex = 0;
+    };
+
+    const nextInSequence = () => {
+        if (sequenceIndex < sequence.length) {
+            const totalDuration = parseFloat(totalDurationControl.value);
+            if (totalDuration === 0) {
+                stopAudio();
+                return;
+            }
+            const durationPerNoise = totalDuration / sequence.length;
+            const currentType = sequence[sequenceIndex];
+            
+            startAudio(currentType, durationPerNoise);
+            sequenceIndex++;
+        } else {
+            stopAudio();
+            alert('エージングシーケンスが完了しました。');
+        }
+    };
+
+    const updateTimeAndDraw = () => {
+        const elapsedTime = (Date.now() - startTime) / 1000;
+        const totalDuration = parseFloat(totalDurationControl.value) * 60;
+        const durationPerNoise = totalDuration / sequence.length;
+        const timeLeft = durationPerNoise - (elapsedTime % durationPerNoise);
+        
+        if (timeLeft >= 0) {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = Math.floor(timeLeft % 60);
+            const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            timeLeftDisplay.textContent = formattedTime;
+        } else {
+            timeLeftDisplay.textContent = '00:00:00';
+        }
+
+        drawSpectrum();
+        animationFrameId = requestAnimationFrame(updateTimeAndDraw);
+    };
+
+    const drawSpectrum = () => {
+        if (!analyser) return;
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        analyser.getByteFrequencyData(dataArray);
+
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const barWidth = (canvas.width / bufferLength) * 2.5;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+            const barHeight = dataArray[i] / 2;
+            const hue = i / bufferLength * 360;
+            canvasCtx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+            canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+            x += barWidth + 1;
+        }
+    };
+
+    volumeControl.addEventListener('input', () => {
+        if (gainNode) {
+            gainNode.gain.value = volumeControl.value;
+        }
+    });
+
+    startButton.addEventListener('click', () => {
+        // ユーザーインタラクションを検知しAudioContextを再開
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        stopAudio();
+        nextInSequence();
+        requestWakeLock();
+    });
+    
+    stopBtn.addEventListener('click', stopAudio);
+
+</script>
+
+</body>
+</html>
