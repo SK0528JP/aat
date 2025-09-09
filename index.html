@@ -6,9 +6,11 @@
     <title>オーディオエージングツール</title>
     
     <meta property="og:title" content="オーディオエージングツール">
-    <meta property="og:description" content="イヤホン・ヘッドホン・スピーカーのエージング（慣らし運転）を自動で行う、ウェブツールです。">
+    <meta property="og:description" content="イヤホン・ヘッドホン・スピーカーのエージング（慣らし運転）を自動で行う、ダークテーマのウェブツールです。">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://sk0528jp.github.io/aat">
+    <meta property="og:image" content="https://sk0528jp.github.io/aat/ogp.png">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* フォントの読み込み */
@@ -234,7 +236,6 @@
         #stopBtn:hover {
             background-color: #c0392b;
         }
-
     </style>
 </head>
 <body>
@@ -281,10 +282,34 @@
     let timerId;
     let animationFrameId;
     let startTime;
+    let totalElapsedSeconds = 0;
     let sequenceIndex = 0;
     const sequence = ['white', 'pink', 'sweep'];
 
-    // バックグラウンド再生の許可をリクエスト
+    // Media Session APIのアートワーク
+    const artwork = [
+        { src: 'https://sk0528jp.github.io/aat/icon_96.png', sizes: '96x96', type: 'image/png' },
+        { src: 'https://sk0528jp.github.io/aat/icon_128.png', sizes: '128x128', type: 'image/png' },
+        { src: 'https://sk0528jp.github.io/aat/icon_192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'https://sk0528jp.github.io/aat/icon_256.png', sizes: '256x256', type: 'image/png' },
+        { src: 'https://sk0528jp.github.io/aat/icon_384.png', sizes: '384x384', type: 'image/png' },
+        { src: 'https://sk0528jp.github.io/aat/icon_512.png', sizes: '512x512', type: 'image/png' }
+    ];
+
+    // Media Session APIの状態を更新
+    const updateMediaSession = (state, title, artist, album) => {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: title,
+                artist: artist,
+                album: album,
+                artwork: artwork
+            });
+            navigator.mediaSession.playbackState = state;
+        }
+    };
+
+    // バックグラウンド再生の許可
     const requestWakeLock = async () => {
         if ('wakeLock' in navigator) {
             try {
@@ -368,7 +393,8 @@
             source.start();
         }
         
-        currentTypeDisplay.textContent = type === 'white' ? 'ホワイトノイズ' : type === 'pink' ? 'ピンクノイズ' : 'スイープ';
+        const typeName = type === 'white' ? 'ホワイトノイズ' : type === 'pink' ? 'ピンクノイズ' : 'スイープ';
+        currentTypeDisplay.textContent = typeName;
         startTime = Date.now();
         updateTimeAndDraw();
 
@@ -377,6 +403,8 @@
         } else {
             nextInSequence();
         }
+        
+        updateMediaSession('playing', 'Audio Aging Tool', 'Gemini', typeName);
     };
     
     const stopAudioSource = () => {
@@ -409,6 +437,8 @@
         timeLeftDisplay.textContent = '00:00:00';
         canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
         sequenceIndex = 0;
+        totalElapsedSeconds = 0;
+        updateMediaSession('paused', 'Audio Aging Tool', 'Gemini', '停止中');
     };
 
     const nextInSequence = () => {
@@ -430,11 +460,13 @@
     };
 
     const updateTimeAndDraw = () => {
-        const elapsedTime = (Date.now() - startTime) / 1000;
         const totalDuration = parseFloat(totalDurationControl.value) * 60;
         const durationPerNoise = totalDuration / sequence.length;
-        const timeLeft = durationPerNoise - (elapsedTime % durationPerNoise);
+        const currentElapsedSeconds = (Date.now() - startTime) / 1000;
         
+        const currentTotalElapsed = totalElapsedSeconds + currentElapsedSeconds;
+        const timeLeft = totalDuration - currentTotalElapsed;
+
         if (timeLeft >= 0) {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = Math.floor(timeLeft % 60);
@@ -455,6 +487,8 @@
         const dataArray = new Uint8Array(bufferLength);
         analyser.getByteFrequencyData(dataArray);
 
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
         canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
         const barWidth = (canvas.width / bufferLength) * 2.5;
@@ -475,8 +509,37 @@
         }
     });
 
+    // Media Session APIのイベントハンドラ
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', () => {
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+                updateMediaSession('playing', currentTypeDisplay.textContent, 'SK0528JP', 'Audio Aging Tool');
+            } else {
+                nextInSequence();
+            }
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+            if (audioCtx && audioCtx.state === 'running') {
+                audioCtx.suspend();
+                updateMediaSession('paused', currentTypeDisplay.textContent, 'SK0528JP', 'Audio Aging Tool');
+            }
+        });
+        
+        // Androidの通知からのシーク操作に対応
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+            const seekTime = details.seekTime;
+            if (seekTime !== undefined) {
+                // シーク操作の実装は複雑なため、今回はスキップ
+                // 既存のWeb Audio APIのストリームでは直接のシークが困難
+                // 次のトラックへのスキップで代用
+                nextInSequence();
+            }
+        });
+    }
+
     startButton.addEventListener('click', () => {
-        // ユーザーインタラクションを検知しAudioContextを再開
         if (audioCtx && audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
@@ -486,7 +549,6 @@
     });
     
     stopBtn.addEventListener('click', stopAudio);
-
 </script>
 
 </body>
